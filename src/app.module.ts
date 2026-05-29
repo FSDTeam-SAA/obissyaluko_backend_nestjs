@@ -11,6 +11,8 @@ import { DashboardModule } from './app/module/dashboard/dashboard.module';
 import { SubscribeModule } from './app/module/subscribe/subscribe.module';
 import { PaymentModule } from './app/module/payment/payment.module';
 import { WebhookModule } from './app/module/webhook/webhook.module';
+import { VisaModule } from './app/module/visa/visa.module';
+import { CountryModule } from './app/module/country/country.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { WebhookModule } from './app/module/webhook/webhook.module';
     SubscribeModule,
     PaymentModule,
     WebhookModule,
+    VisaModule,
+    CountryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
