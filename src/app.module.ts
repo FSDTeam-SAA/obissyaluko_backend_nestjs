@@ -13,6 +13,7 @@ import { PaymentModule } from './app/module/payment/payment.module';
 import { WebhookModule } from './app/module/webhook/webhook.module';
 import { VisaModule } from './app/module/visa/visa.module';
 import { CountryModule } from './app/module/country/country.module';
+import { UniversitiesModule } from './app/module/universities/universities.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { CountryModule } from './app/module/country/country.module';
     WebhookModule,
     VisaModule,
     CountryModule,
+    UniversitiesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
