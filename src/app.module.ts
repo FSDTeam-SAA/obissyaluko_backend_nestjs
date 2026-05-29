@@ -14,6 +14,7 @@ import { WebhookModule } from './app/module/webhook/webhook.module';
 import { VisaModule } from './app/module/visa/visa.module';
 import { CountryModule } from './app/module/country/country.module';
 import { UniversitiesModule } from './app/module/universities/universities.module';
+import { ProgramsModule } from './app/module/programs/programs.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { UniversitiesModule } from './app/module/universities/universities.modul
     VisaModule,
     CountryModule,
     UniversitiesModule,
+    ProgramsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
