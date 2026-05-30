@@ -17,6 +17,8 @@ import { UniversitiesModule } from './app/module/universities/universities.modul
 import { ProgramsModule } from './app/module/programs/programs.module';
 import { TourModule } from './app/module/tour/tour.module';
 import { BlogModule } from './app/module/blog/blog.module';
+import { FaqModule } from './app/module/faq/faq.module';
+import { ConsultationModule } from './app/module/consultation/consultation.module';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { BlogModule } from './app/module/blog/blog.module';
     ProgramsModule,
     TourModule,
     BlogModule,
+    FaqModule,
+    ConsultationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
