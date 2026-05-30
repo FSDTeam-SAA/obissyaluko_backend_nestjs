@@ -15,6 +15,7 @@ import { VisaModule } from './app/module/visa/visa.module';
 import { CountryModule } from './app/module/country/country.module';
 import { UniversitiesModule } from './app/module/universities/universities.module';
 import { ProgramsModule } from './app/module/programs/programs.module';
+import { TourModule } from './app/module/tour/tour.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { ProgramsModule } from './app/module/programs/programs.module';
     CountryModule,
     UniversitiesModule,
     ProgramsModule,
+    TourModule,
   ],
   controllers: [AppController],
   providers: [AppService],
