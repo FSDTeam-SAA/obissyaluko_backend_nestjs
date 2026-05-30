@@ -31,6 +31,8 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       transform: true,
+      skipMissingProperties: true,
+      skipUndefinedProperties: true,
     }),
   );
   app.useGlobalInterceptors(new UtilsInterceptor());
