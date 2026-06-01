@@ -69,6 +69,18 @@ export class WebhookService {
           await this.handlePaymentIntentFailed(event, res);
           break;
 
+        case 'payment_intent.amount_capturable_updated':
+          await this.handlePaymentIntentAuthorized(event, res);
+          break;
+
+        case 'payment_intent.canceled':
+          await this.handlePaymentIntentCanceled(event, res);
+          break;
+
+        case 'charge.refunded':
+          await this.handleChargeRefunded(event, res);
+          break;
+
         default:
           this.logger.log(`Unhandled event type: ${event.type}`);
           return res.json({ received: true });
@@ -86,24 +98,13 @@ export class WebhookService {
     const intent = event.data.object as Stripe.PaymentIntent;
     const paymentType = intent.metadata?.paymentType;
 
-    // const payment = await this.paymentModel.findOne({
-    //   stripePaymentIntentId: intent.id,
-    // });
-    // if (!payment) return res.json({ received: true });
-
-    // payment.status = 'completed';
-    // await payment.save();
-
     const payment = await this.paymentModel.findOne({
       stripePaymentIntentId: intent.id,
     });
+    if (!payment) return res.json({ received: true });
 
-    if (!payment) {
-      return res.json({ received: true });
-    }
-
-    if (payment.status === 'completed') {
-      return res.json({ received: true });
+    if (payment.status === 'completed' || payment.status === 'refunded') {
+      return res.json({ received: true, ignored: 'already_processed' });
     }
 
     payment.status = 'completed';
@@ -139,7 +140,9 @@ export class WebhookService {
       if (!consultation) return res.json({ received: true });
 
       consultation.paymentStatus = PaymentStatus.PAID;
-      consultation.status = ConsultationStatus.PENDING;
+      if (consultation.adminStatus !== 'approved') {
+        consultation.status = ConsultationStatus.PENDING;
+      }
       await consultation.save();
 
       this.logger.log(
@@ -169,5 +172,91 @@ export class WebhookService {
     }
 
     return res.json({ received: true });
+  }
+
+  private async handlePaymentIntentAuthorized(
+    event: Stripe.Event,
+    res: Response,
+  ) {
+    const intent = event.data.object as Stripe.PaymentIntent;
+    if (intent.metadata?.paymentType !== 'consultation') {
+      return res.json({ received: true });
+    }
+
+    const payment = await this.paymentModel.findOne({
+      stripePaymentIntentId: intent.id,
+    });
+    if (!payment) return res.json({ received: true });
+
+    payment.status = 'authorized';
+    await payment.save();
+
+    if (payment.consultation) {
+      const consultation = await this.consultationModel.findById(
+        payment.consultation,
+      );
+      if (consultation?.adminStatus === 'rejected') {
+        await this.stripe?.paymentIntents.cancel(intent.id);
+        payment.status = 'cancelled';
+        await payment.save();
+        consultation.paymentStatus = PaymentStatus.CANCELLED;
+        await consultation.save();
+        return res.json({ received: true, ignored: 'consultation_rejected' });
+      }
+
+      if (consultation) {
+        consultation.paymentStatus = PaymentStatus.AUTHORIZED;
+        await consultation.save();
+      }
+    }
+
+    return res.json({ received: true, type: 'consultation_authorized' });
+  }
+
+  private async handlePaymentIntentCanceled(
+    event: Stripe.Event,
+    res: Response,
+  ) {
+    const intent = event.data.object as Stripe.PaymentIntent;
+    const payment = await this.paymentModel.findOne({
+      stripePaymentIntentId: intent.id,
+    });
+    if (!payment) return res.json({ received: true });
+
+    payment.status = 'cancelled';
+    await payment.save();
+
+    if (payment.consultation) {
+      await this.consultationModel.findByIdAndUpdate(payment.consultation, {
+        $set: { paymentStatus: PaymentStatus.CANCELLED },
+      });
+    }
+
+    return res.json({ received: true, type: 'payment_cancelled' });
+  }
+
+  private async handleChargeRefunded(event: Stripe.Event, res: Response) {
+    const charge = event.data.object as Stripe.Charge;
+    const paymentIntentId =
+      typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
+        : charge.payment_intent?.id;
+    if (!paymentIntentId) return res.json({ received: true });
+
+    const payment = await this.paymentModel.findOne({
+      stripePaymentIntentId: paymentIntentId,
+    });
+    if (!payment) return res.json({ received: true });
+
+    payment.status = 'refunded';
+    await payment.save();
+
+    if (payment.consultation) {
+      await this.consultationModel.findByIdAndUpdate(payment.consultation, {
+        $set: { paymentStatus: PaymentStatus.REFUNDED },
+      });
+    }
+
+    return res.json({ received: true, type: 'refund' });
   }
 }
