@@ -16,6 +16,7 @@ export class WebhookController {
     @Res() res: Response,
     @Headers('stripe-signature') sig: string,
   ) {
-    return this.webhookService.handleWebhook(req.body as Buffer, sig, res);
+    const rawBody = (req as any).rawBody || req.body;
+    return this.webhookService.handleWebhook(rawBody, sig, res);
   }
 }
