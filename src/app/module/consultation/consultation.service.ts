@@ -76,7 +76,10 @@ export class ConsultationService {
   // Get single
   async findOne(id: string) {
     if (!Types.ObjectId.isValid(id)) {
-      throw new HttpException('Invalid Consultation ID', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Invalid Consultation ID',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const consultation = await this.consultationModel.findById(id);
@@ -147,28 +150,56 @@ export class ConsultationService {
     return this.consultationModel.findByIdAndDelete(id);
   }
 
+  // async approveConsultation(id: string) {
+  //   const consultation = await this.consultationModel.findById(id);
+  //   if (!consultation) {
+  //     throw new HttpException('Consultation not found', HttpStatus.NOT_FOUND);
+  //   }
+  //   // if (
+  //   //   consultation.fee > 0 &&
+  //   //   consultation.paymentStatus !== PaymentStatus.PAID
+  //   // ) {
+  //   //   throw new HttpException(
+  //   //     'Cannot approve: payment not completed yet',
+  //   //     HttpStatus.BAD_REQUEST,
+  //   //   );
+  //   // }
+  //   consultation.status = ConsultationStatus.CONFIRMED;
+  //   consultation.adminStatus = 'approved';
+  //   await consultation.save();
+
+  //   return consultation;
+  // }
+
+  // Admin: Reject
+
   async approveConsultation(id: string) {
     const consultation = await this.consultationModel.findById(id);
+
     if (!consultation) {
       throw new HttpException('Consultation not found', HttpStatus.NOT_FOUND);
     }
-    if (
-      consultation.fee > 0 &&
-      consultation.paymentStatus !== PaymentStatus.PAID
-    ) {
+
+    const payment = await this.paymentModel.findOne({
+      consultation: consultation._id,
+      status: 'completed',
+    });
+
+    if (consultation.fee > 0 && !payment) {
       throw new HttpException(
-        'Cannot approve: payment not completed yet',
+        'Payment not completed yet',
         HttpStatus.BAD_REQUEST,
       );
     }
-    consultation.status = ConsultationStatus.CONFIRMED;
+
     consultation.adminStatus = 'approved';
+    consultation.status = ConsultationStatus.CONFIRMED;
+
     await consultation.save();
 
     return consultation;
   }
 
-  // Admin: Reject
   async rejectConsultation(id: string) {
     const consultation = await this.consultationModel.findById(id);
     if (!consultation) {
