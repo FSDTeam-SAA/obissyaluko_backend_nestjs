@@ -904,12 +904,6 @@
       window.addEventListener('load', () => {
         initStripe(PK_DEFAULT);
         openConfig();
-
-        // Auto-fetch preview on config changes
-        ['conId', 'jwtToken', 'baseUrl'].forEach(id => {
-          document.getElementById(id).addEventListener('change', fetchConPreview);
-          document.getElementById(id).addEventListener('input', fetchConPreview);
-        });
       });
 
       function initStripe(pk) {
@@ -987,30 +981,14 @@
           const res = await fetch(`${base}/consultation/${id}`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
-          if (!res.ok) {
-            let errMsg = `Error ${res.status}`;
-            try {
-              const errData = await res.json();
-              errMsg = errData?.message || errMsg;
-            } catch (e) {}
-            showMsg('error', errMsg);
-            // Reset preview elements
-            document.getElementById('conTypeDisplay').textContent = 'Consultation';
-            document.getElementById('conDurationDisplay').textContent = 'Select type in config';
-            document.getElementById('planPriceDisplay').textContent = '—';
-            document.getElementById('amountDisplay').textContent = '$0.00';
-            document.getElementById('amountRow').style.display = 'none';
-            document.getElementById('statusArea').style.display = 'none';
-            return;
-          }
+          if (!res.ok) return;
           const { data } = await res.json();
           if (data) {
-            showMsg('', ''); // Clear error if fetch succeeded
             document.getElementById('conTypeDisplay').textContent =
               data.type || 'Consultation';
             document.getElementById('conDurationDisplay').textContent =
               data.duration || '';
-            if (data.fee !== undefined && data.fee !== null) {
+            if (data.fee) {
               document.getElementById('planPriceDisplay').textContent = Number(
                 data.fee,
               ).toFixed(2);
@@ -1022,16 +1000,14 @@
               data.status,
               data.paymentStatus,
               data.adminStatus,
-              data.fee,
             );
           }
         } catch (e) {
-          showMsg('error', 'Network error: Failed to connect to backend.');
-          console.log('Preview failed', e);
+          console.log('Preview failed');
         }
       }
 
-      function updateStatusBadge(status, payStatus, adminStatus, fee) {
+      function updateStatusBadge(status, payStatus, adminStatus) {
         const area = document.getElementById('statusArea');
         const badge = document.getElementById('statusBadge');
         const text = document.getElementById('statusText');
@@ -1042,22 +1018,25 @@
         dot.classList.remove('pulse');
 
         if (payStatus === 'Paid' && adminStatus === 'approved') {
-          badge.className = 'status-badge approved';
+          badge.classList.add('approved');
           text.textContent = '✅ Approved & Paid';
         } else if (adminStatus === 'rejected') {
-          badge.className = 'status-badge rejected';
+          badge.classList.add('rejected');
           text.textContent = '❌ Rejected (Refunded)';
         } else if (payStatus === 'Paid') {
-          badge.className = 'status-badge paid';
+          badge.classList.add('paid');
           text.textContent = '💳 Paid — Awaiting Approval';
           dot.classList.add('pulse');
-        } else if (fee === 0 || !fee) {
-          badge.className = 'status-badge free';
-          text.textContent = '🎉 Free Consultation';
-        } else {
-          badge.className = 'status-badge pending';
+        } else if (status === 'Pending') {
+          badge.classList.add('pending');
           text.textContent = '⏳ Pending Payment';
           dot.classList.add('pulse');
+        } else if (payStatus === 'Free') {
+          badge.classList.add('free');
+          text.textContent = 'Free Consultation';
+        } else {
+          badge.classList.add('pending');
+          text.textContent = status || 'Pending';
         }
       }
 
@@ -1217,7 +1196,7 @@
           }
 
           document.getElementById('statusCard').classList.add('show');
-          updateStatusBadge(data.status, data.paymentStatus, data.adminStatus, data.fee);
+          updateStatusBadge(data.status, data.paymentStatus, data.adminStatus);
         } catch (e) {
           showMsg('error', 'Backend unreachable: ' + e.message);
         }

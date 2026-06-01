@@ -79,7 +79,6 @@ export class WebhookService {
     }
   }
 
-
   private async handlePaymentIntentSucceeded(
     event: Stripe.Event,
     res: Response,
@@ -87,15 +86,28 @@ export class WebhookService {
     const intent = event.data.object as Stripe.PaymentIntent;
     const paymentType = intent.metadata?.paymentType;
 
+    // const payment = await this.paymentModel.findOne({
+    //   stripePaymentIntentId: intent.id,
+    // });
+    // if (!payment) return res.json({ received: true });
+
+    // payment.status = 'completed';
+    // await payment.save();
+
     const payment = await this.paymentModel.findOne({
       stripePaymentIntentId: intent.id,
     });
-    if (!payment) return res.json({ received: true });
 
- 
+    if (!payment) {
+      return res.json({ received: true });
+    }
+
+    if (payment.status === 'completed') {
+      return res.json({ received: true });
+    }
+
     payment.status = 'completed';
     await payment.save();
-
 
     if (paymentType === 'subscription') {
       const subscribeId =
@@ -117,7 +129,6 @@ export class WebhookService {
       return res.json({ received: true, type: 'subscription' });
     }
 
-    
     if (paymentType === 'consultation') {
       const consultationId =
         payment.consultation?.toString() ?? intent.metadata?.consultationId;
