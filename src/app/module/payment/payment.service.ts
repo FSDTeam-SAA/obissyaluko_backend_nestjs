@@ -14,6 +14,7 @@ import paginationHelper, { IOptions } from 'src/app/helpers/pagenation';
 import {
   Consultation,
   ConsultationDocument,
+  ConsultationStatus,
   PaymentStatus,
 } from '../consultation/entities/consultation.entity';
 
@@ -210,6 +211,13 @@ export class PaymentService {
   async consultationPayment(userId: string, consultationId: string) {
     const stripe = this.getStripeClient();
 
+    if (!Types.ObjectId.isValid(consultationId)) {
+      throw new HttpException('Invalid Consultation ID', 400);
+    }
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new HttpException('Invalid User ID', 400);
+    }
+
     const consultation = await this.consultationModel.findById(consultationId);
     if (!consultation) {
       throw new HttpException('Consultation not found', 404);
@@ -220,22 +228,78 @@ export class PaymentService {
       throw new HttpException('User not found', 404);
     }
 
-    if (user._id === consultation.userId) {
-      throw new HttpException(
-        'You are not authorized to pay for this consultation',
-        403,
+    // Check authorization: only the user who booked it can pay
+    if (consultation.userId && consultation.userId.toString() !== userId) {
+      throw new HttpException('You are not authorized to pay for this consultation', 403);
+    }
+
+    const existingCompleted = await this.paymentModel.findOne({
+      user: user._id,
+      consultation: consultation._id,
+      status: 'completed',
+    });
+
+    if (consultation.paymentStatus === PaymentStatus.PAID && !existingCompleted) {
+      // Self-heal: if marked paid but no completed payment record exists, reset to FREE to allow payment
+      consultation.paymentStatus = PaymentStatus.FREE;
+      await consultation.save();
+    } else if (consultation.paymentStatus === PaymentStatus.PAID) {
+      throw new HttpException('This consultation is already paid', 400);
+    }
+
+    if (existingCompleted) {
+      throw new HttpException('This consultation is already paid', 400);
+    }
+
+    if (
+      consultation.paymentStatus === PaymentStatus.FREE &&
+      consultation.fee === 0
+    ) {
+      throw new HttpException('This consultation is free', 400);
+    }
+
+    const existing = await this.paymentModel.findOne({
+      user: user._id,
+      consultation: consultation._id,
+      status: 'pending',
+    });
+
+    if (existing?.stripePaymentIntentId) {
+      const existingPI = await stripe.paymentIntents.retrieve(
+        existing.stripePaymentIntentId,
       );
+
+      if (existingPI.status === 'succeeded') {
+        // Auto-heal DB status
+        existing.status = 'completed';
+        await existing.save();
+
+        consultation.paymentStatus = PaymentStatus.PAID;
+        consultation.status = ConsultationStatus.PENDING;
+        await consultation.save();
+
+        throw new HttpException('This consultation is already paid', 400);
+      }
+
+      if (
+        existingPI.status !== 'canceled' &&
+        existingPI.amount === Math.round(consultation.fee * 100)
+      ) {
+        return {
+          clientSecret: existingPI.client_secret,
+          paymentIntentId: existingPI.id,
+          amount: consultation.fee,
+        };
+      }
     }
 
-    if (consultation.paymentStatus === PaymentStatus.FREE) {
-      throw new HttpException('Consultation is already free', 400);
-    }
+    const amountInCents = Math.round(consultation.fee * 100);
 
-    const intented = await stripe.paymentIntents.create({
-      amount: consultation.fee * 100,
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
       currency: 'usd',
       payment_method_types: ['card'],
-      receipt_email:user.email,
+      receipt_email: user.email,
       metadata: {
         userId: user._id.toString(),
         consultationId: consultation._id.toString(),
@@ -244,38 +308,24 @@ export class PaymentService {
       },
     });
 
-    const existing = await this.paymentModel.findOne({
-      user: user._id,
-      consultation: consultation._id,
-      status: 'pending',
-    });
-
     if (existing) {
-      existing.stripePaymentIntentId = intented.id;
+      existing.stripePaymentIntentId = paymentIntent.id;
       existing.amount = consultation.fee;
       await existing.save();
-      
-
-      return {
-        clientSecret: intented.client_secret,
-        paymentIntentId: intented.id,
+    } else {
+      await this.paymentModel.create({
+        user: user._id,
+        consultation: consultation._id,
         amount: consultation.fee,
-      };
+        paymentType: 'consultation',
+        status: 'pending',
+        stripePaymentIntentId: paymentIntent.id,
+      });
     }
 
-    // Store payment record
-    await this.paymentModel.create({
-      user: user._id,
-      consultation: consultation._id,
-      amount: consultation.fee,
-      paymentType: 'consultation',
-      status: 'pending',
-      stripePaymentIntentId: intented.id,
-    });
-
     return {
-      clientSecret: intented.client_secret,
-      paymentIntentId: intented.id,
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
       amount: consultation.fee,
     };
   }
