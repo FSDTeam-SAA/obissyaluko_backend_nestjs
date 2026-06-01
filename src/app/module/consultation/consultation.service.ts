@@ -1,7 +1,7 @@
 // consultation.service.ts
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   Consultation,
   ConsultationDocument,
@@ -75,10 +75,43 @@ export class ConsultationService {
 
   // Get single
   async findOne(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new HttpException('Invalid Consultation ID', HttpStatus.BAD_REQUEST);
+    }
+
     const consultation = await this.consultationModel.findById(id);
     if (!consultation) {
       throw new HttpException('Consultation not found', HttpStatus.NOT_FOUND);
     }
+
+    // Auto-sync status from Stripe if payment is completed but local DB is still pending
+    if (
+      consultation.fee > 0 &&
+      consultation.paymentStatus !== PaymentStatus.PAID
+    ) {
+      const payment = await this.paymentModel.findOne({
+        consultation: consultation._id,
+        status: 'pending',
+      });
+      if (payment && payment.stripePaymentIntentId && this.stripe) {
+        try {
+          const intent = await this.stripe.paymentIntents.retrieve(
+            payment.stripePaymentIntentId,
+          );
+          if (intent.status === 'succeeded') {
+            payment.status = 'completed';
+            await payment.save();
+
+            consultation.paymentStatus = PaymentStatus.PAID;
+            consultation.status = ConsultationStatus.PENDING;
+            await consultation.save();
+          }
+        } catch (err) {
+          // Ignore Stripe retrieval errors to avoid breaking the GET request
+        }
+      }
+    }
+
     return consultation;
   }
 
