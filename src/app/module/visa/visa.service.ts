@@ -7,11 +7,14 @@ import { Model } from 'mongoose';
 import { IFilterParams } from 'src/app/helpers/pick';
 import paginationHelper, { IOptions } from 'src/app/helpers/pagenation';
 import buildWhereConditions from 'src/app/helpers/buildWhereConditions';
+import { Country, CountryDocument } from '../country/entities/country.entity';
 
 @Injectable()
 export class VisaService {
   constructor(
     @InjectModel(Visa.name) private readonly visaModel: Model<VisaDocument>,
+    @InjectModel(Country.name)
+    private readonly countryModel: Model<CountryDocument>,
   ) {}
 
   async createVisa(createVisaDto: CreateVisaDto) {
@@ -74,5 +77,37 @@ export class VisaService {
     }
     const result = await this.visaModel.findByIdAndDelete(id);
     return result;
+  }
+
+  async getAllCountryVisas(params: IFilterParams, options: IOptions): Promise<any>  {
+    const { limit, page, skip, sortBy, sortOrder } = paginationHelper(options);
+    const whereConditions = buildWhereConditions(params, [
+      'countryName',
+      'countryCode',
+      'visaAvailable',
+      'studyAvailable',
+      'popular',
+    ]);
+
+    const total = await this.countryModel.countDocuments(whereConditions);
+    const countries = await this.countryModel
+      .find(whereConditions)
+      .skip(skip)
+      .limit(limit)
+      .sort({ [sortBy]: sortOrder });
+
+    const countriesWithVisas = await Promise.all(
+      countries.map(async (country) => {
+        const visas = await this.visaModel
+          .find({ country: country._id as any })
+          .select('visaTitle category processingTime price');
+        return { ...country, visas };
+      }),
+    );
+
+    return {
+      meta: { page, limit, total },
+      data: countriesWithVisas,
+    };
   }
 }

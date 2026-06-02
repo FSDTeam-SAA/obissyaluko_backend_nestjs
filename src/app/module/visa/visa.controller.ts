@@ -115,6 +115,89 @@ export class VisaController {
     };
   }
 
+  @Get('all-country-visa')
+  @ApiOperation({
+    summary: 'get all country visa',
+  })
+  @ApiQuery({
+    name: 'searchTerm',
+    required: false,
+    type: String,
+    description: 'Search term',
+  })
+  @ApiQuery({
+    name: 'countryName',
+    required: false,
+    type: String,
+    description: 'Country name',
+  })
+  @ApiQuery({
+    name: 'countryCode',
+    required: false,
+    type: String,
+    description: 'Country code',
+  })
+  @ApiQuery({
+    name: 'visaAvailable',
+    required: false,
+    type: Boolean,
+    description: 'Visa available',
+  })
+  @ApiQuery({
+    name: 'studyAvailable',
+    required: false,
+    type: Boolean,
+    description: 'Study available',
+  })
+  @ApiQuery({
+    name: 'popular',
+    required: false,
+    type: Boolean,
+    description: 'Popular',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Limit',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+    description: 'Sort by',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    type: String,
+    description: 'Sort order',
+  })
+  @HttpCode(HttpStatus.OK)
+  async getAllCountryVisa(@Req() req: Request) {
+    const filters = pick(req.query, [
+      'searchTerm',
+      'countryName',
+      'countryCode',
+      'visaAvailable',
+      'studyAvailable',
+      'popular',
+    ]);
+    const options = pick(req.query, ['limit', 'page', 'sortBy', 'sortOrder']);
+    const result = await this.visaService.getAllCountryVisas(filters, options);
+    return {
+      message: 'Country visa fetched successfully',
+      meta: result.meta,
+      data: result.data,
+    };
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'get single visa',
