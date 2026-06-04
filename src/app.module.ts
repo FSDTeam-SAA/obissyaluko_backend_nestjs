@@ -19,6 +19,7 @@ import { TourModule } from './app/module/tour/tour.module';
 import { BlogModule } from './app/module/blog/blog.module';
 import { FaqModule } from './app/module/faq/faq.module';
 import { ConsultationModule } from './app/module/consultation/consultation.module';
+import { VisaApplyModule } from './app/module/visa-apply/visa-apply.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ConsultationModule } from './app/module/consultation/consultation.modul
     BlogModule,
     FaqModule,
     ConsultationModule,
+    VisaApplyModule,
   ],
   controllers: [AppController],
   providers: [AppService],

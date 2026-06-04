@@ -100,7 +100,7 @@ export class VisaService {
       countries.map(async (country) => {
         const visas = await this.visaModel
           .find({ country: country._id as any })
-          .select('visaTitle category processingTime price');
+          // .select('visaTitle category processingTime price');
         return { ...country, visas };
       }),
     );

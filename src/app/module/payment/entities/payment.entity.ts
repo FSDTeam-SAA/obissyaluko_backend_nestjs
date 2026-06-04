@@ -14,6 +14,9 @@ export class Payment {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Consultation' })
   consultation!: Types.ObjectId;
 
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Visa' })
+  visa!: Types.ObjectId;
+
   @Prop()
   amount!: number;
 
