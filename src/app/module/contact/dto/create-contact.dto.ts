@@ -16,6 +16,10 @@ export class CreateContactDto {
   phoneNumber!: string;
 
   @ApiPropertyOptional({ example: '' })
+  @IsString()
+  subject!: string;
+
+  @ApiPropertyOptional({ example: '' })
   @IsOptional()
   @IsString()
   message!: string;
