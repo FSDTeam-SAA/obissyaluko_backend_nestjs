@@ -15,6 +15,9 @@ export class Contact {
   phoneNumber!: string;
 
   @Prop()
+  subject!: string;
+
+  @Prop()
   message!: string;
 }
 
