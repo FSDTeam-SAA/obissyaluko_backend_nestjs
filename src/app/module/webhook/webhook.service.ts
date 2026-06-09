@@ -16,6 +16,7 @@ import {
   ConsultationStatus,
   PaymentStatus,
 } from '../consultation/entities/consultation.entity';
+import { Visa, VisaDocument } from '../visa/entities/visa.entity';
 
 @Injectable()
 export class WebhookService {
@@ -34,6 +35,9 @@ export class WebhookService {
 
     @InjectModel(Consultation.name)
     private readonly consultationModel: Model<ConsultationDocument>,
+
+    @InjectModel(Visa.name)
+    private readonly visaModel: Model<VisaDocument>,
   ) {
     if (config.stripe.secretKey) {
       this.stripe = new Stripe(config.stripe.secretKey);
@@ -155,6 +159,16 @@ export class WebhookService {
         status: 'awaiting_admin_approval',
       });
     }
+
+    // if (paymentType === 'visa') {
+    //   const visaId = payment.visa?.toString() ?? intent.metadata?.visaId;
+    //   if (!visaId) return res.json({ received: true });
+
+    //   const visa = await this.visaModel.findById(visaId);
+    //   if (!visa) return res.json({ received: true });
+
+    //   return res.json({ received: true, type: 'visa' });
+    // }
 
     return res.json({ received: true });
   }

@@ -17,6 +17,7 @@ import {
   ConsultationStatus,
   PaymentStatus,
 } from '../consultation/entities/consultation.entity';
+import { Visa, VisaDocument } from '../visa/entities/visa.entity';
 
 @Injectable()
 export class PaymentService {
@@ -31,6 +32,8 @@ export class PaymentService {
     private readonly subscribeModel: Model<SubscribeDocument>,
     @InjectModel(Consultation.name)
     private readonly consultationModel: Model<ConsultationDocument>,
+    @InjectModel(Visa.name)
+    private readonly visaModel: Model<VisaDocument>,
   ) {
     if (config.stripe.secretKey) {
       this.stripe = new Stripe(config.stripe.secretKey);
@@ -374,6 +377,100 @@ export class PaymentService {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
       amount: consultation.fee,
+    };
+  }
+
+  async visaPayment(userId: string, visaId: string) {
+    const stripe = this.getStripeClient();
+
+    if (!Types.ObjectId.isValid(visaId)) {
+      throw new HttpException('Invalid Visa ID', 400);
+    }
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new HttpException('Invalid User ID', 400);
+    }
+
+    const visa = await this.visaModel.findById(visaId);
+    if (!visa) {
+      throw new HttpException('Visa not found', 404);
+    }
+
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new HttpException('User not found', 404);
+    }
+
+    const existing = await this.paymentModel.findOne({
+      user: user._id,
+      visa: visa._id,
+      status: 'completed',
+    });
+
+    if (existing) {
+      throw new HttpException('This visa is already paid', 400);
+    }
+
+    const existingPending = await this.paymentModel.findOne({
+      user: user._id,
+      visa: visa._id,
+      status: 'pending',
+    });
+
+    if (existingPending?.stripePaymentIntentId) {
+      try {
+        const existingPI = await stripe.paymentIntents.retrieve(
+          existingPending.stripePaymentIntentId,
+        );
+        if (
+          existingPI.status !== 'succeeded' &&
+          existingPI.status !== 'canceled'
+        ) {
+          return {
+            clientSecret: existingPI.client_secret,
+            paymentIntentId: existingPI.id,
+            amount: visa.price,
+          };
+        }
+      } catch {
+        // The saved intent may belong to an old Stripe account. Create a new one.
+      }
+    }
+
+    const amountInCents = Math.round(visa.price * 100);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: 'usd',
+      capture_method: 'manual',
+      payment_method_types: ['card'],
+      receipt_email: user.email,
+      metadata: {
+        userId: user._id.toString(),
+        visaId: visa._id.toString(),
+        paymentType: 'visa',
+        price: visa.price.toString(),
+      },
+    });
+
+    if (existingPending) {
+      existingPending.stripePaymentIntentId = paymentIntent.id;
+      existingPending.amount = visa.price;
+      await existingPending.save();
+    } else {
+      await this.paymentModel.create({
+        user: user._id,
+        visa: visa._id,
+        amount: visa.price,
+        paymentType: 'visa',
+        status: 'pending',
+        stripePaymentIntentId: paymentIntent.id,
+      });
+    }
+
+    return {
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      amount: visa.price,
     };
   }
 }
