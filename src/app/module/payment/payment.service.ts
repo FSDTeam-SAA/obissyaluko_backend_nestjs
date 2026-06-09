@@ -18,6 +18,10 @@ import {
   PaymentStatus,
 } from '../consultation/entities/consultation.entity';
 import { Visa, VisaDocument } from '../visa/entities/visa.entity';
+import {
+  TourBooking,
+  TourBookingDocument,
+} from '../tour-booking/entities/tour-booking.entity';
 
 @Injectable()
 export class PaymentService {
@@ -34,6 +38,8 @@ export class PaymentService {
     private readonly consultationModel: Model<ConsultationDocument>,
     @InjectModel(Visa.name)
     private readonly visaModel: Model<VisaDocument>,
+    @InjectModel(TourBooking.name)
+    private readonly tourBookingModel: Model<TourBookingDocument>,
   ) {
     if (config.stripe.secretKey) {
       this.stripe = new Stripe(config.stripe.secretKey);
@@ -471,6 +477,106 @@ export class PaymentService {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
       amount: visa.price,
+    };
+  }
+
+  async tourPayment(userId: string, tourBookingId: string) {
+    const stripe = this.getStripeClient();
+
+    if (!Types.ObjectId.isValid(tourBookingId)) {
+      throw new HttpException('Invalid Tour Booking ID', 400);
+    }
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new HttpException('Invalid User ID', 400);
+    }
+
+    const tourBooking = await this.tourBookingModel.findById(tourBookingId);
+    if (!tourBooking) {
+      throw new HttpException('Tour booking not found', 404);
+    }
+
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new HttpException('User not found', 404);
+    }
+
+    if (tourBooking.userId && tourBooking.userId.toString() !== userId) {
+      throw new HttpException(
+        'You are not authorized to pay for this booking',
+        403,
+      );
+    }
+
+    const existingCompleted = await this.paymentModel.findOne({
+      user: user._id,
+      tourBookingId: tourBooking._id,
+      status: 'completed',
+    });
+
+    if (existingCompleted) {
+      throw new HttpException('This tour booking is already paid', 400);
+    }
+
+    const existingPending = await this.paymentModel.findOne({
+      user: user._id,
+      tourBookingId: tourBooking._id,
+      status: 'pending',
+    });
+
+    if (existingPending?.stripePaymentIntentId) {
+      try {
+        const existingPI = await stripe.paymentIntents.retrieve(
+          existingPending.stripePaymentIntentId,
+        );
+        if (
+          existingPI.status !== 'succeeded' &&
+          existingPI.status !== 'canceled'
+        ) {
+          return {
+            clientSecret: existingPI.client_secret,
+            paymentIntentId: existingPI.id,
+            amount: tourBooking.amount,
+          };
+        }
+      } catch {
+        // The saved intent may belong to an old Stripe account. Create a new one.
+      }
+    }
+
+    const amountInCents = Math.round(tourBooking.amount * 100);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: 'usd',
+      payment_method_types: ['card'],
+      receipt_email: user.email,
+      metadata: {
+        userId: user._id.toString(),
+        tourBookingId: tourBooking._id.toString(),
+        paymentType: 'tour',
+        price: tourBooking.amount.toString(),
+      },
+    });
+
+    if (existingPending) {
+      existingPending.stripePaymentIntentId = paymentIntent.id;
+      existingPending.amount = tourBooking.amount;
+      await existingPending.save();
+    } else {
+      await this.paymentModel.create({
+        user: user._id,
+        tourBookingId: tourBooking._id,
+        amount: tourBooking.amount,
+        paymentType: 'tour',
+        status: 'pending',
+        stripePaymentIntentId: paymentIntent.id,
+      });
+    }
+
+    return {
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      amount: tourBooking.amount,
     };
   }
 }

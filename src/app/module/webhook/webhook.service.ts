@@ -17,6 +17,10 @@ import {
   PaymentStatus,
 } from '../consultation/entities/consultation.entity';
 import { Visa, VisaDocument } from '../visa/entities/visa.entity';
+import {
+  TourBooking,
+  TourBookingDocument,
+} from '../tour-booking/entities/tour-booking.entity';
 
 @Injectable()
 export class WebhookService {
@@ -38,6 +42,9 @@ export class WebhookService {
 
     @InjectModel(Visa.name)
     private readonly visaModel: Model<VisaDocument>,
+
+    @InjectModel(TourBooking.name)
+    private readonly tourBookingModel: Model<TourBookingDocument>,
   ) {
     if (config.stripe.secretKey) {
       this.stripe = new Stripe(config.stripe.secretKey);
@@ -169,6 +176,26 @@ export class WebhookService {
 
     //   return res.json({ received: true, type: 'visa' });
     // }
+
+    if (paymentType === 'tour') {
+      const tourBookingId =
+        payment.tourBookingId?.toString() ?? intent.metadata?.tourBookingId;
+      if (!tourBookingId) return res.json({ received: true });
+
+      const tourBooking =
+        await this.tourBookingModel.findById(tourBookingId);
+      if (!tourBooking) return res.json({ received: true });
+
+      this.logger.log(
+        `Tour booking ${tourBookingId} payment received. Awaiting admin approval.`,
+      );
+
+      return res.json({
+        received: true,
+        type: 'tour',
+        status: 'awaiting_admin_approval',
+      });
+    }
 
     return res.json({ received: true });
   }

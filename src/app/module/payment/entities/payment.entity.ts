@@ -17,10 +17,16 @@ export class Payment {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Visa' })
   visa!: Types.ObjectId;
 
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Tour' })
+  tourBookingId!: Types.ObjectId;
+
   @Prop()
   amount!: number;
 
-  @Prop({ enum: ['subscription', 'consultation'], default: 'subscription' })
+  @Prop({
+    enum: ['subscription', 'consultation', 'visa', 'tour'],
+    default: 'subscription',
+  })
   paymentType!: string;
 
   @Prop({

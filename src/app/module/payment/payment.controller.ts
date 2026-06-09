@@ -7,6 +7,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Headers,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import type { Request } from 'express';
@@ -149,4 +150,24 @@ export class PaymentController {
       data: result,
     };
   }
+
+  @Post('tour/:tourBookingId')
+  @ApiOperation({ summary: 'Create payment intent for tour booking' })
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard('user'))
+  async payTourBooking(
+    @Req() req: Request,
+    @Param('tourBookingId') tourBookingId: string,
+  ) {
+    const result = await this.paymentService.tourPayment(
+      req.user!.id,
+      tourBookingId,
+    );
+    return {
+      message: 'Payment intent created successfully',
+      data: result,
+    };
+  }
+
+  
 }
