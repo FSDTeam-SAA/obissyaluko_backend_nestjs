@@ -36,49 +36,49 @@ export enum Duration {
 @Schema({ timestamps: true })
 export class Consultation {
   @Prop({ required: true })
-  clientName: string;
+  clientName!: string;
 
   @Prop({ required: true })
-  email: string;
+  email!: string;
 
   @Prop()
-  phone: string;
+  phone!: string;
 
   @Prop({ enum: ConsultationType, required: true })
-  type: ConsultationType;
+  type!: ConsultationType;
 
   @Prop({ enum: Duration })
-  duration: Duration;
+  duration!: Duration;
 
   @Prop({ default: 0 })
-  fee: number;
+  fee!: number;
 
   @Prop({ required: true })
-  preferredDate: Date;
+  preferredDate!: Date;
 
   @Prop({ required: true })
-  preferredTime: string;
+  preferredTime!: string;
 
   @Prop()
-  message: string;
+  message!: string;
 
   @Prop({ enum: ConsultationStatus, default: ConsultationStatus.PENDING })
-  status: ConsultationStatus;
+  status!: ConsultationStatus;
 
   @Prop({ enum: PaymentStatus, default: PaymentStatus.FREE })
-  paymentStatus: PaymentStatus;
+  paymentStatus!: PaymentStatus;
 
   @Prop()
-  meetingLink: string;
+  meetingLink!: string;
 
   @Prop()
-  adminNotes: string;
+  adminNotes!: string;
 
   @Prop({ type: Types.ObjectId, ref: 'User' })
-  userId: Types.ObjectId;
+  userId!: Types.ObjectId;
 
   @Prop({ enum: ['Pending', 'approved', 'rejected'], default: 'Pending' })
-  adminStatus: string;
+  adminStatus!: string;
 }
 
 export const ConsultationSchema = SchemaFactory.createForClass(Consultation);
