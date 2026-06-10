@@ -13,6 +13,10 @@ import {
   ConsultationSchema,
 } from '../consultation/entities/consultation.entity';
 import { Visa, VisaSchema } from '../visa/entities/visa.entity';
+import {
+  TourBooking,
+  TourBookingSchema,
+} from '../tour-booking/entities/tour-booking.entity';
 
 @Module({
   imports: [
@@ -22,6 +26,7 @@ import { Visa, VisaSchema } from '../visa/entities/visa.entity';
       { name: Payment.name, schema: PaymentSchema },
       { name: Consultation.name, schema: ConsultationSchema },
       { name: Visa.name, schema: VisaSchema },
+      { name: TourBooking.name, schema: TourBookingSchema },
     ]),
   ],
   controllers: [PaymentController],
