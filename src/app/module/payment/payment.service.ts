@@ -507,6 +507,10 @@ export class PaymentService {
       );
     }
 
+    if (tourBooking.adminStatus === 'rejected') {
+      throw new HttpException('This tour booking has been rejected', 400);
+    }
+
     const existingCompleted = await this.paymentModel.findOne({
       user: user._id,
       tourBookingId: tourBooking._id,
@@ -515,6 +519,10 @@ export class PaymentService {
 
     if (existingCompleted) {
       throw new HttpException('This tour booking is already paid', 400);
+    }
+
+    if (tourBooking.paymentStatus === PaymentStatus.REFUNDED) {
+      throw new HttpException('This tour booking payment was refunded', 400);
     }
 
     const existingPending = await this.paymentModel.findOne({
@@ -538,7 +546,8 @@ export class PaymentService {
             amount: tourBooking.amount,
           };
         }
-      } catch {
+      } catch (error) {
+        if (error instanceof HttpException) throw error;
         // The saved intent may belong to an old Stripe account. Create a new one.
       }
     }
@@ -548,6 +557,7 @@ export class PaymentService {
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: 'usd',
+      capture_method: 'manual',
       payment_method_types: ['card'],
       receipt_email: user.email,
       metadata: {

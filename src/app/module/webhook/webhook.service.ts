@@ -182,9 +182,14 @@ export class WebhookService {
         payment.tourBookingId?.toString() ?? intent.metadata?.tourBookingId;
       if (!tourBookingId) return res.json({ received: true });
 
-      const tourBooking =
-        await this.tourBookingModel.findById(tourBookingId);
+      const tourBooking = await this.tourBookingModel.findById(tourBookingId);
       if (!tourBooking) return res.json({ received: true });
+
+      tourBooking.paymentStatus = PaymentStatus.PAID;
+      if (tourBooking.adminStatus !== 'approved') {
+        tourBooking.adminStatus = 'Pending';
+      }
+      await tourBooking.save();
 
       this.logger.log(
         `Tour booking ${tourBookingId} payment received. Awaiting admin approval.`,
@@ -220,7 +225,9 @@ export class WebhookService {
     res: Response,
   ) {
     const intent = event.data.object as Stripe.PaymentIntent;
-    if (intent.metadata?.paymentType !== 'consultation') {
+    const paymentType = intent.metadata?.paymentType;
+
+    if (paymentType !== 'consultation' && paymentType !== 'tour') {
       return res.json({ received: true });
     }
 
@@ -232,7 +239,7 @@ export class WebhookService {
     payment.status = 'authorized';
     await payment.save();
 
-    if (payment.consultation) {
+    if (paymentType === 'consultation' && payment.consultation) {
       const consultation = await this.consultationModel.findById(
         payment.consultation,
       );
@@ -249,9 +256,32 @@ export class WebhookService {
         consultation.paymentStatus = PaymentStatus.AUTHORIZED;
         await consultation.save();
       }
+
+      return res.json({ received: true, type: 'consultation_authorized' });
     }
 
-    return res.json({ received: true, type: 'consultation_authorized' });
+    if (paymentType === 'tour' && payment.tourBookingId) {
+      const tourBooking = await this.tourBookingModel.findById(
+        payment.tourBookingId,
+      );
+      if (tourBooking?.adminStatus === 'rejected') {
+        await this.stripe?.paymentIntents.cancel(intent.id);
+        payment.status = 'cancelled';
+        await payment.save();
+        tourBooking.paymentStatus = PaymentStatus.CANCELLED;
+        await tourBooking.save();
+        return res.json({ received: true, ignored: 'tour_rejected' });
+      }
+
+      if (tourBooking) {
+        tourBooking.paymentStatus = PaymentStatus.AUTHORIZED;
+        await tourBooking.save();
+      }
+
+      return res.json({ received: true, type: 'tour_authorized' });
+    }
+
+    return res.json({ received: true });
   }
 
   private async handlePaymentIntentCanceled(
@@ -269,6 +299,12 @@ export class WebhookService {
 
     if (payment.consultation) {
       await this.consultationModel.findByIdAndUpdate(payment.consultation, {
+        $set: { paymentStatus: PaymentStatus.CANCELLED },
+      });
+    }
+
+    if (payment.tourBookingId) {
+      await this.tourBookingModel.findByIdAndUpdate(payment.tourBookingId, {
         $set: { paymentStatus: PaymentStatus.CANCELLED },
       });
     }
@@ -294,6 +330,12 @@ export class WebhookService {
 
     if (payment.consultation) {
       await this.consultationModel.findByIdAndUpdate(payment.consultation, {
+        $set: { paymentStatus: PaymentStatus.REFUNDED },
+      });
+    }
+
+    if (payment.tourBookingId) {
+      await this.tourBookingModel.findByIdAndUpdate(payment.tourBookingId, {
         $set: { paymentStatus: PaymentStatus.REFUNDED },
       });
     }

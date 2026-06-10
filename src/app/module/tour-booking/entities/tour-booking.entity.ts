@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { HydratedDocument, Types } from 'mongoose';
+import { PaymentStatus } from '../../consultation/entities/consultation.entity';
 
 export type TourBookingDocument = HydratedDocument<TourBooking>;
 
@@ -32,8 +33,11 @@ export class TourBooking {
   @Prop()
   spacialRequests!: string;
 
-  @Prop({ enum: ['pending', 'approved', 'rejected'], default: 'pending' })
-  status!: string;
+  @Prop({ enum: PaymentStatus, default: PaymentStatus.FREE })
+  paymentStatus!: PaymentStatus;
+
+  @Prop({ enum: ['Pending', 'approved', 'rejected'], default: 'Pending' })
+  adminStatus!: string;
 }
 
 export const TourBookingSchema = SchemaFactory.createForClass(TourBooking);

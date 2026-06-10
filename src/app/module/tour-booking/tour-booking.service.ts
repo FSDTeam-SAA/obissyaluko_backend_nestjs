@@ -14,6 +14,7 @@ import buildWhereConditions from 'src/app/helpers/buildWhereConditions';
 import Stripe from 'stripe';
 import config from 'src/app/config';
 import { Payment, PaymentDocument } from '../payment/entities/payment.entity';
+import { PaymentStatus } from '../consultation/entities/consultation.entity';
 
 @Injectable()
 export class TourBookingService {
@@ -33,7 +34,10 @@ export class TourBookingService {
 
   private getStripeClient() {
     if (!this.stripe) {
-      throw new HttpException('Stripe is not configured', HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        'Stripe is not configured',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
     return this.stripe;
   }
@@ -92,31 +96,59 @@ export class TourBookingService {
     return result;
   }
 
-
+  // Admin: approve tour booking
   async approveTourBooking(id: string) {
     const tourBooking = await this.tourBookingModel.findById(id);
     if (!tourBooking) {
       throw new HttpException('Tour booking not found', HttpStatus.NOT_FOUND);
     }
 
-    const payment = await this.paymentModel.findOne({
-      tourBookingId: tourBooking._id,
-      status: 'completed',
-    });
+    if (tourBooking.amount > 0) {
+      if (tourBooking.paymentStatus !== PaymentStatus.AUTHORIZED) {
+        throw new HttpException(
+          'Cannot approve: payment has not been authorized yet',
+          HttpStatus.CONFLICT,
+        );
+      }
 
-    if (!payment) {
-      throw new HttpException(
-        'Cannot approve: payment is not completed yet',
-        HttpStatus.BAD_REQUEST,
-      );
+      const payment = await this.paymentModel.findOne({
+        tourBookingId: tourBooking._id,
+        status: 'authorized',
+      });
+
+      if (!payment?.stripePaymentIntentId) {
+        throw new HttpException(
+          'Cannot approve: authorized payment record not found',
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      try {
+        const stripe = this.getStripeClient();
+        const intent = await stripe.paymentIntents.capture(
+          payment.stripePaymentIntentId,
+        );
+        if (intent.status !== 'succeeded') {
+          throw new Error(`Stripe capture status is ${intent.status}`);
+        }
+        payment.status = 'completed';
+        await payment.save();
+        tourBooking.paymentStatus = PaymentStatus.PAID;
+      } catch (err: any) {
+        throw new HttpException(
+          `Payment capture failed: ${err.message}`,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
     }
 
-    tourBooking.status = 'approved';
+    tourBooking.adminStatus = 'approved';
     await tourBooking.save();
 
     return tourBooking;
   }
 
+  // Admin: reject tour booking
   async rejectTourBooking(id: string) {
     const tourBooking = await this.tourBookingModel.findById(id);
     if (!tourBooking) {
@@ -136,6 +168,7 @@ export class TourBookingService {
         });
         completedPayment.status = 'refunded';
         await completedPayment.save();
+        tourBooking.paymentStatus = PaymentStatus.REFUNDED;
       } catch (err: any) {
         throw new HttpException(
           `Refund failed: ${err.message}`,
@@ -156,6 +189,7 @@ export class TourBookingService {
           );
           pendingPayment.status = 'cancelled';
           await pendingPayment.save();
+          tourBooking.paymentStatus = PaymentStatus.CANCELLED;
         } catch (err: any) {
           throw new HttpException(
             `Payment cancellation failed: ${err.message}`,
@@ -165,7 +199,7 @@ export class TourBookingService {
       }
     }
 
-    tourBooking.status = 'rejected';
+    tourBooking.adminStatus = 'rejected';
     await tourBooking.save();
 
     return tourBooking;
