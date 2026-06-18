@@ -151,6 +151,26 @@ export class PaymentController {
     };
   }
 
+  @Post('visa/:visaId')
+  @ApiOperation({
+    summary: 'Create payment intent for visa application',
+  })
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard('user'))
+  async payVisa(
+    @Req() req: Request,
+    @Param('visaId') visaId: string,
+  ) {
+    const result = await this.paymentService.visaPayment(
+      req.user!.id,
+      visaId,
+    );
+    return {
+      message: 'Payment intent created successfully',
+      data: result,
+    };
+  }
+
   @Post('tour/:tourBookingId')
   @ApiOperation({ summary: 'Create payment intent for tour booking' })
   @ApiBearerAuth('access-token')
