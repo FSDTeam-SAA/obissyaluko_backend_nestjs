@@ -17,6 +17,10 @@ import {
   TourBooking,
   TourBookingSchema,
 } from '../tour-booking/entities/tour-booking.entity';
+import {
+  HotelBooking,
+  HotelBookingSchema,
+} from '../hotel-booking/entities/hotel-booking.entity';
 
 @Module({
   imports: [
@@ -27,6 +31,7 @@ import {
       { name: Consultation.name, schema: ConsultationSchema },
       { name: Visa.name, schema: VisaSchema },
       { name: TourBooking.name, schema: TourBookingSchema },
+      { name: HotelBooking.name, schema: HotelBookingSchema },
     ]),
   ],
   controllers: [PaymentController],

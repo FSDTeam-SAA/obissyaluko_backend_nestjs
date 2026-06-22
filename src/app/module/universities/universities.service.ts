@@ -92,7 +92,11 @@ export class UniversitiesService {
     return university;
   }
 
-  async updateUniversity(id: string, updateUniversityDto: UpdateUniversityDto,files?: Express.Multer.File[]) {
+  async updateUniversity(
+    id: string,
+    updateUniversityDto: UpdateUniversityDto,
+    files?: Express.Multer.File[],
+  ) {
     const university = await this.universityModel.findById(id);
     if (!university) {
       throw new HttpException('University not found', 404);
@@ -108,18 +112,18 @@ export class UniversitiesService {
           };
         }),
       );
-  
+
       const uploadedImage = uploadedFiles.find(
         (file) => file.fieldname === 'image',
       );
       const uploadedLogo = uploadedFiles.find(
         (file) => file.fieldname === 'logo',
       );
-  
+
       if (!uploadedImage || !uploadedLogo) {
         throw new HttpException('Image and Logo files are required', 400);
       }
-  
+
       updateUniversityDto.image = uploadedImage.url;
       updateUniversityDto.logo = uploadedLogo.url;
     }
@@ -138,5 +142,37 @@ export class UniversitiesService {
     }
     const result = await this.universityModel.findByIdAndDelete(id);
     return result;
+  }
+
+  async getUniversityPrograms(params: IFilterParams, options: IOptions) {
+    const { limit, page, skip, sortBy, sortOrder } = paginationHelper(options);
+    const whereConditions = buildWhereConditions(params, [
+      'programName',
+      'degree',
+      'fieldOfStudy',
+    ]);
+
+    const total = await this.universityModel.countDocuments(whereConditions);
+    const universities = await this.universityModel
+      .find(whereConditions)
+      .skip(skip)
+      .limit(limit)
+      .sort({ [sortBy]: sortOrder })
+      .populate({
+        path: 'programs',
+        populate: {
+          path: 'programName',
+          model: 'Program',
+        },
+      })
+      .populate('country', 'countryName');
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+      },
+      data: universities,
+    };
   }
 }

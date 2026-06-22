@@ -21,6 +21,8 @@ import { FaqModule } from './app/module/faq/faq.module';
 import { ConsultationModule } from './app/module/consultation/consultation.module';
 import { VisaApplyModule } from './app/module/visa-apply/visa-apply.module';
 import { TourBookingModule } from './app/module/tour-booking/tour-booking.module';
+import { HotalsModule } from './app/module/hotals/hotals.module';
+import { HotelBookingModule } from './app/module/hotel-booking/hotel-booking.module';
 
 @Module({
   imports: [
@@ -43,6 +45,8 @@ import { TourBookingModule } from './app/module/tour-booking/tour-booking.module
     ConsultationModule,
     VisaApplyModule,
     TourBookingModule,
+    HotalsModule,
+    HotelBookingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

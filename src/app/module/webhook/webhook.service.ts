@@ -21,6 +21,7 @@ import {
   TourBooking,
   TourBookingDocument,
 } from '../tour-booking/entities/tour-booking.entity';
+import { HotelBooking, HotelBookingDocument } from '../hotel-booking/entities/hotel-booking.entity';
 
 @Injectable()
 export class WebhookService {
@@ -45,6 +46,9 @@ export class WebhookService {
 
     @InjectModel(TourBooking.name)
     private readonly tourBookingModel: Model<TourBookingDocument>,
+
+    @InjectModel(HotelBooking.name)
+    private readonly hotelBookingModel: Model<HotelBookingDocument>,
   ) {
     if (config.stripe.secretKey) {
       this.stripe = new Stripe(config.stripe.secretKey);
@@ -202,6 +206,33 @@ export class WebhookService {
       });
     }
 
+    if (paymentType === 'hotal') {
+      const hotelBookingId =
+        payment.hotelBookingId?.toString() ??
+        intent.metadata?.hotalBookingId;
+      if (!hotelBookingId) return res.json({ received: true });
+
+      const hotelBooking =
+        await this.hotelBookingModel.findById(hotelBookingId);
+      if (!hotelBooking) return res.json({ received: true });
+
+      hotelBooking.paymentStatus = PaymentStatus.PAID;
+      if (hotelBooking.adminStatus !== 'approved') {
+        hotelBooking.adminStatus = 'Pending';
+      }
+      await hotelBooking.save();
+
+      this.logger.log(
+        `Hotel booking ${hotelBookingId} payment received. Awaiting admin approval.`,
+      );
+
+      return res.json({
+        received: true,
+        type: 'hotal',
+        status: 'awaiting_admin_approval',
+      });
+    }
+
     return res.json({ received: true });
   }
 
@@ -227,7 +258,11 @@ export class WebhookService {
     const intent = event.data.object as Stripe.PaymentIntent;
     const paymentType = intent.metadata?.paymentType;
 
-    if (paymentType !== 'consultation' && paymentType !== 'tour') {
+    if (
+      paymentType !== 'consultation' &&
+      paymentType !== 'tour' &&
+      paymentType !== 'hotal'
+    ) {
       return res.json({ received: true });
     }
 
@@ -281,6 +316,27 @@ export class WebhookService {
       return res.json({ received: true, type: 'tour_authorized' });
     }
 
+    if (paymentType === 'hotal' && payment.hotelBookingId) {
+      const hotelBooking = await this.hotelBookingModel.findById(
+        payment.hotelBookingId,
+      );
+      if (hotelBooking?.adminStatus === 'rejected') {
+        await this.stripe?.paymentIntents.cancel(intent.id);
+        payment.status = 'cancelled';
+        await payment.save();
+        hotelBooking.paymentStatus = PaymentStatus.CANCELLED;
+        await hotelBooking.save();
+        return res.json({ received: true, ignored: 'hotel_rejected' });
+      }
+
+      if (hotelBooking) {
+        hotelBooking.paymentStatus = PaymentStatus.AUTHORIZED;
+        await hotelBooking.save();
+      }
+
+      return res.json({ received: true, type: 'hotel_authorized' });
+    }
+
     return res.json({ received: true });
   }
 
@@ -305,6 +361,12 @@ export class WebhookService {
 
     if (payment.tourBookingId) {
       await this.tourBookingModel.findByIdAndUpdate(payment.tourBookingId, {
+        $set: { paymentStatus: PaymentStatus.CANCELLED },
+      });
+    }
+
+    if (payment.hotelBookingId) {
+      await this.hotelBookingModel.findByIdAndUpdate(payment.hotelBookingId, {
         $set: { paymentStatus: PaymentStatus.CANCELLED },
       });
     }
@@ -336,6 +398,12 @@ export class WebhookService {
 
     if (payment.tourBookingId) {
       await this.tourBookingModel.findByIdAndUpdate(payment.tourBookingId, {
+        $set: { paymentStatus: PaymentStatus.REFUNDED },
+      });
+    }
+
+    if (payment.hotelBookingId) {
+      await this.hotelBookingModel.findByIdAndUpdate(payment.hotelBookingId, {
         $set: { paymentStatus: PaymentStatus.REFUNDED },
       });
     }

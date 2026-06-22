@@ -6,34 +6,34 @@ export type VisaApplyDocument = HydratedDocument<VisaApply>;
 @Schema({ timestamps: true })
 export class VisaApply {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Visa' })
-  visaId: Types.ObjectId;
+  visaId!: Types.ObjectId;
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User' })
-  userId: Types.ObjectId;
+  userId!: Types.ObjectId;
 
   @Prop()
-  fullName: string;
+  fullName!: string;
 
   @Prop()
-  email: string;
+  email!: string;
 
   @Prop()
-  phone: string;
+  phone!: string;
 
   @Prop()
-  photo: string;
+  photo!: string;
 
   @Prop()
-  nidCopy: string;
+  nidCopy!: string;
 
   @Prop()
-  passportCopy: string;
+  passportCopy!: string;
 
   @Prop()
-  bankStatement: string;
+  bankStatement!: string;
 
   @Prop({ enum: ['pending', 'approved', 'rejected'], default: 'pending' })
-  status: string;
+  status!: string;
 }
 
 export const VisaApplySchema = SchemaFactory.createForClass(VisaApply);

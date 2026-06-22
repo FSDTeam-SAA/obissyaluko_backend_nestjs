@@ -127,6 +127,77 @@ export class UniversitiesController {
     };
   }
 
+  @Get('programs')
+  @ApiOperation({
+    summary: 'get programs for a specific university',
+  })
+  @ApiQuery({
+    name: 'searchTerm',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'country',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'ranking',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'description',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'website',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    type: String,
+  })
+  @HttpCode(HttpStatus.OK)
+  async getUniversityPrograms(@Req() req: Request) {
+    const filters = pick(req.query, [
+      'searchTerm',
+      'country',
+      'ranking',
+      'description',
+      'website',
+    ]);
+    const options = pick(req.query, ['limit', 'page', 'sortBy', 'sortOrder']);
+    const result = await this.universitiesService.getUniversityPrograms(
+      filters,
+      options,
+    );
+    return {
+      success: true,
+      message: 'University programs fetched successfully',
+      meta: result.meta,
+      data: result.data,
+    };
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'get single university',
