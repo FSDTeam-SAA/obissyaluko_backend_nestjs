@@ -189,5 +189,21 @@ export class PaymentController {
     };
   }
 
-  
+  @Post('hotal/:hotelBookingId')
+  @ApiOperation({ summary: 'Create payment intent for hotel booking' })
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard('user', 'admin'))
+  async payHotelBooking(
+    @Req() req: Request,
+    @Param('hotelBookingId') hotelBookingId: string,
+  ) {
+    const result = await this.paymentService.hotalPayment(
+      req.user!.id,
+      hotelBookingId,
+    );
+    return {
+      message: 'Payment intent created successfully',
+      data: result,
+    };
+  }
 }

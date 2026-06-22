@@ -22,6 +22,7 @@ import {
   TourBooking,
   TourBookingDocument,
 } from '../tour-booking/entities/tour-booking.entity';
+import { HotelBooking, HotelBookingDocument } from '../hotel-booking/entities/hotel-booking.entity';
 
 @Injectable()
 export class PaymentService {
@@ -40,6 +41,8 @@ export class PaymentService {
     private readonly visaModel: Model<VisaDocument>,
     @InjectModel(TourBooking.name)
     private readonly tourBookingModel: Model<TourBookingDocument>,
+    @InjectModel(HotelBooking.name)
+    private readonly hotelBookingModel: Model<HotelBookingDocument>,
   ) {
     if (config.stripe.secretKey) {
       this.stripe = new Stripe(config.stripe.secretKey);
@@ -588,5 +591,122 @@ export class PaymentService {
       paymentIntentId: paymentIntent.id,
       amount: tourBooking.amount,
     };
+  }
+
+  async hotalPayment(userId: string, hotalBookingId: string) {
+    const stripe = this.getStripeClient();
+
+    if (!Types.ObjectId.isValid(hotalBookingId)) {
+      throw new HttpException('Invalid Hotal Booking ID', 400);
+    }
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new HttpException('Invalid User ID', 400);
+    }
+
+    const hotalBooking = await this.hotelBookingModel.findById(hotalBookingId);
+    if (!hotalBooking) {
+      throw new HttpException('Hotal booking not found', 404);
+    }
+
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new HttpException('User not found', 404);
+    }
+
+    if (hotalBooking.userId && hotalBooking.userId.toString() !== userId) {
+      throw new HttpException(
+        'You are not authorized to pay for this booking',
+        403,
+      );
+    }
+
+    if (hotalBooking.adminStatus === 'rejected') {
+      throw new HttpException('This hotal booking has been rejected', 400);
+    }
+
+    const existingCompleted = await this.paymentModel.findOne({
+      user: user._id,
+      hotelBookingId: hotalBooking._id,
+      status: 'completed',
+    });
+
+    if (existingCompleted) {
+      throw new HttpException('This hotal booking is already paid', 400);
+    }
+
+    if (hotalBooking.paymentStatus === PaymentStatus.REFUNDED) {
+      throw new HttpException('This hotel booking payment was refunded', 400);
+    }
+
+    if (!Number.isFinite(hotalBooking.totalAmount) || hotalBooking.totalAmount <= 0) {
+      throw new HttpException('This hotel booking has no payable amount', 400);
+    }
+
+    const existingPending = await this.paymentModel.findOne({
+      user: user._id,
+      hotelBookingId: hotalBooking._id,
+      status: 'pending',
+    });
+
+    if (existingPending?.stripePaymentIntentId) {
+      try {
+        const existingPI = await stripe.paymentIntents.retrieve(
+          existingPending.stripePaymentIntentId,
+        );
+        if (
+          existingPI.status !== 'succeeded' &&
+          existingPI.status !== 'canceled'
+        ) {
+          return {
+            clientSecret: existingPI.client_secret,
+            paymentIntentId: existingPI.id,
+            amount: hotalBooking.totalAmount,
+          };
+        }
+      } catch (error) {
+        if (error instanceof HttpException) throw error;
+        // The saved intent may belong to an old Stripe account. Create a new one.
+      }
+
+
+
+    }
+
+    const amountInCents = Math.round(hotalBooking.totalAmount * 100);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: 'usd',
+      capture_method: 'manual',
+      payment_method_types: ['card'],
+      receipt_email: user.email,
+      metadata: {
+        userId: user._id.toString(),
+        hotalBookingId: hotalBooking._id.toString(),
+        paymentType: 'hotal',
+        price: hotalBooking.totalAmount.toString(),
+      },
+    });
+
+    if (existingPending) {
+      existingPending.stripePaymentIntentId = paymentIntent.id;
+      existingPending.amount = hotalBooking.totalAmount;
+      await existingPending.save();
+    } else {
+      await this.paymentModel.create({
+        user: user._id,
+        hotelBookingId: hotalBooking._id,
+        amount: hotalBooking.totalAmount,
+        paymentType: 'hotal',
+        status: 'pending',
+        stripePaymentIntentId: paymentIntent.id,
+      });
+    }
+
+    return {
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      amount: hotalBooking.totalAmount,
+    }
   }
 }

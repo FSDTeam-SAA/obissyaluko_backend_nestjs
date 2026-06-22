@@ -8,6 +8,7 @@ import {
 } from './entities/hotel-booking.entity';
 import { Hotal, HotalSchema } from '../hotals/entities/hotal.entity';
 import { User, UserSchema } from '../user/entities/user.entity';
+import { Payment, PaymentSchema } from '../payment/entities/payment.entity';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { User, UserSchema } from '../user/entities/user.entity';
       { name: HotelBooking.name, schema: HotelBookingSchema },
       { name: Hotal.name, schema: HotalSchema },
       { name: User.name, schema: UserSchema },
+      { name: Payment.name, schema: PaymentSchema },
     ]),
   ],
   controllers: [HotelBookingController],
